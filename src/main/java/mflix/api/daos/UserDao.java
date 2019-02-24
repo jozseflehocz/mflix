@@ -5,11 +5,13 @@ import com.mongodb.client.FindIterable;
 import com.mongodb.client.MongoClient;
 import com.mongodb.client.MongoCollection;
 import com.mongodb.client.model.Filters;
+import com.mongodb.client.result.DeleteResult;
 import mflix.api.models.Session;
 import mflix.api.models.User;
 import org.bson.Document;
 import org.bson.codecs.configuration.CodecRegistry;
 import org.bson.codecs.pojo.PojoCodecProvider;
+import org.bson.conversions.Bson;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -48,7 +50,6 @@ public class UserDao extends AbstractMFlixDao {
     // collection returns a Session objects instead of Document objects.
     //sessionsCollection = db.getCollection("sessions");
     sessionsCollection=db.getCollection("sessions",Session.class).withCodecRegistry(pojoCodecRegistry);
-    //log = LoggerFactory.getLogger(this.getClass());
   }
 
   /**
@@ -80,9 +81,10 @@ public class UserDao extends AbstractMFlixDao {
     Session session = new Session();
     session.setUserId(userId);
     session.setJwt(jwt);
+    //Document session=new Document("userId",userId);
+    //session.append("jwt",jwt);
 
     sessionsCollection.insertOne(session);
-
     return true;
     //TODO > Ticket: Handling Errors - implement a safeguard against
     // creating a session with the same jwt token.
@@ -95,10 +97,11 @@ public class UserDao extends AbstractMFlixDao {
    * @return User object or null.
    */
   public User getUser(String email) {
-    User user = usersCollection.find(Filters.eq("email", email)).first();
+
     //User user =usersCollection.find(Filters.)
-    //User user=null;
+    User user;
     //TODO> Ticket: User Management - implement the query that returns the first User object.
+    user = usersCollection.find(Filters.eq("email", email)).first();
     return user;
   }
 
@@ -108,17 +111,20 @@ public class UserDao extends AbstractMFlixDao {
    * @param userId - user string identifier.
    * @return Session object or null.
    */
-  public FindIterable<Document> getUserSession(String userId) {
+  public Session getUserSession(String userId) {
     //TODO> Ticket: User Management - implement the method that returns Sessions for a given
     // userId
-    FindIterable<Document> session=sessionsCollection.find(Filters.eq("userId",userId));
-    //FindIterable<Session> session=sessionsCollection
+    Session session;
+    Bson queryFilter=new Document("user_id",userId);
+    session =sessionsCollection.find(queryFilter).iterator().tryNext();
     return session;
   }
 
   public boolean deleteUserSessions(String userId) {
     //TODO> Ticket: User Management - implement the delete user sessions method
-    return false;
+    System.out.println("userId: "+userId);
+     DeleteResult deleteResult=sessionsCollection.deleteMany(Filters.eq("user_id",userId));
+     return true;
   }
 
   /**
@@ -130,9 +136,12 @@ public class UserDao extends AbstractMFlixDao {
   public boolean deleteUser(String email) {
     // remove user sessions
     //TODO> Ticket: User Management - implement the delete user method
+    deleteUserSessions(email);
+    DeleteResult deleteResult=usersCollection.deleteMany(Filters.eq("email",email));
+    //DeleteResult deleteResult1=usersCollection.deleteOne(Filters.eq("email","gryffindor@hogwarts.edu"));
     //TODO > Ticket: Handling Errors - make this method more robust by
     // handling potential exceptions.
-    return false;
+    return true;
   }
 
   /**

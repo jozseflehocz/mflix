@@ -78,6 +78,7 @@ public class UserTest extends TicketTest {
     dao.addUser(testUser);
     boolean result = dao.createUserSession(testUser.getEmail(), jwt);
     assertTrue("Should be able to create user sesssion.", result);
+
     Session session = dao.getUserSession(testUser.getEmail());
     assertEquals(
         "The user email needs to match the `session` user_id field",
