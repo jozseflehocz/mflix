@@ -18,8 +18,11 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Configuration;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 
+import static com.mongodb.client.model.Updates.set;
 import static org.bson.codecs.configuration.CodecRegistries.fromProviders;
 import static org.bson.codecs.configuration.CodecRegistries.fromRegistries;
 
@@ -155,8 +158,20 @@ public class UserDao extends AbstractMFlixDao {
   public boolean updateUserPreferences(String email, Map<String, ?> userPreferences) {
     //TODO> Ticket: User Preferences - implement the method that allows for user preferences to
     // be updated.
+    if (userPreferences == null) {
+      return false;
+    }
+    Bson queryFilter = new Document("user_id", email);
+
+    List<Document> documents=new ArrayList<>();
+    userPreferences.forEach((key, value) -> System.out.println(key + ":" + value));
+    userPreferences.forEach((key, value) -> documents.add(key,value);
+
+
+    usersCollection.updateOne(queryFilter, set("userPreferences", userPreferences));
     //TODO > Ticket: Handling Errors - make this method more robust by
     // handling potential exceptions when updating an entry.
-    return false;
+    return true;
   }
+
 }
