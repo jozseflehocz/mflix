@@ -3,13 +3,11 @@ package mflix.api.daos;
 import com.mongodb.MongoClientSettings;
 import com.mongodb.MongoWriteException;
 import com.mongodb.ReadConcern;
+import com.mongodb.client.AggregateIterable;
 import com.mongodb.client.FindIterable;
 import com.mongodb.client.MongoClient;
 import com.mongodb.client.MongoCollection;
-import com.mongodb.client.model.Aggregates;
-import com.mongodb.client.model.Filters;
-import com.mongodb.client.model.Sorts;
-import com.mongodb.client.model.Updates;
+import com.mongodb.client.model.*;
 import com.mongodb.client.result.DeleteResult;
 import com.mongodb.client.result.UpdateResult;
 import mflix.api.models.Comment;
@@ -25,12 +23,19 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
+import org.springframework.util.Assert;
 
 import java.text.MessageFormat;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Date;
 import java.util.List;
 
+import static com.mongodb.client.model.Accumulators.sum;
+import static com.mongodb.client.model.Aggregates.group;
+import static com.mongodb.client.model.Aggregates.sort;
+import static com.mongodb.client.model.Projections.fields;
+import static com.mongodb.client.model.Sorts.descending;
 import static org.bson.codecs.configuration.CodecRegistries.fromProviders;
 import static org.bson.codecs.configuration.CodecRegistries.fromRegistries;
 
@@ -141,9 +146,42 @@ public class CommentDao extends AbstractMFlixDao {
     // TODO> Ticket Delete Comments - Implement the method that enables the deletion of a user
     // comment
     // TIP: make sure to match only users that own the given commentId
+
+    Bson filter = Filters.and(
+            Filters.eq("email", email),
+            Filters.eq("_id", new ObjectId(commentId)));
+
+    DeleteResult dResult = commentCollection.deleteOne(filter);
+
+    if (dResult.getDeletedCount()==1) {
+      return true;
+    }
+
+    log.error("Could not update comment `{}`. Make sure the comment is owned by `{}`",
+            commentId, email);
+    return false;
+
+
+
     // TODO> Ticket Handling Errors - Implement a try catch block to
     // handle a potential write exception when given a wrong commentId.
-    return false;
+  }
+
+  private Bson buildLookupStage(){
+    List<Variable<String>> let = new ArrayList<>();
+    let.add(new Variable<String>("id", "$_id"));
+
+    // lookup pipeline
+    Bson exprMatch = Document.parse("{'$expr': {'$eq': ['$movie_id', '$$id']}}");
+
+    Bson lookupMatch = Aggregates.match(exprMatch);
+    List<Bson> lookUpPipeline = new ArrayList<>();
+    // lookup sort stage
+    Bson sortLookup = sort(descending("date"));
+
+    lookUpPipeline.add(lookupMatch);
+    lookUpPipeline.add(sortLookup);
+    return Aggregates.lookup("comments", let, lookUpPipeline, "comments");
   }
 
   /**
@@ -161,6 +199,41 @@ public class CommentDao extends AbstractMFlixDao {
     // // guarantee for the returned documents. Once a commenter is in the
     // // top 20 of users, they become a Critic, so mostActive is composed of
     // // Critic objects.
-    return mostActive;
-  }
+
+      /**
+       * In this method we can use the $sortByCount stage:
+       * https://docs.mongodb.com/manual/reference/operator/aggregation/sortByCount/index.html
+       * using the $email field expression.
+       */
+      Bson groupByCountStage = Aggregates.sortByCount("$email");
+      // Let's sort descending on the `count` of comments
+      Bson sortStage = Aggregates.sort(Sorts.descending("count"));
+      // Given that we are required the 20 top users we have to also $limit
+      // the resulting list
+      Bson limitStage = Aggregates.limit(20);
+      // Add the stages to a pipeline
+      List<Bson> pipeline = new ArrayList<>();
+      pipeline.add(groupByCountStage);
+      pipeline.add(sortStage);
+      pipeline.add(limitStage);
+
+      // We cannot use the CommentDao class `commentCollection` object
+      // since this returns Comment objects.
+      // We need to create a new collection instance that returns
+      // Critic objects instead.
+      // Given that this report is required to be accurate and
+      // reliable, we want to guarantee a high level of durability, by
+      // ensuring that the majority of nodes in our Replica Set
+      // acknowledged all documents for this query. Therefore we will be
+      // setting our ReadConcern to "majority"
+      // https://docs.mongodb.com/manual/reference/method/cursor.readConcern/
+      MongoCollection<Critic> commentCriticCollection =
+              this.db.getCollection("comments", Critic.class)
+                      .withCodecRegistry(this.pojoCodecRegistry)
+                      .withReadConcern(ReadConcern.MAJORITY);
+
+      // And execute the aggregation command output in our collection object.
+      commentCriticCollection.aggregate(pipeline).into(mostActive);
+      return mostActive;
+      }
 }
