@@ -29,10 +29,24 @@ public class MovieDao extends AbstractMFlixDao {
   }
 
   @SuppressWarnings("unchecked")
-  private Bson buildLookupStage() {
-    return null;
 
+  private Bson buildLookupStage(){
+    List<Variable<String>> let = new ArrayList<>();
+    let.add(new Variable<String>("id", "$_id"));
+
+    // lookup pipeline
+    Bson exprMatch = Document.parse("{'$expr': {'$eq': ['$movie_id', '$$id']}}");
+
+    Bson lookupMatch = Aggregates.match(exprMatch);
+    List<Bson> lookUpPipeline = new ArrayList<>();
+    // lookup sort stage
+    Bson sortLookup = Aggregates.sort(Sorts.descending("date"));
+
+    lookUpPipeline.add(lookupMatch);
+    lookUpPipeline.add(sortLookup);
+    return Aggregates.lookup("comments", let, lookUpPipeline, "comments");
   }
+
 
   /**
    * movieId needs to be a hexadecimal string value. Otherwise it won't be possible to translate to
@@ -48,6 +62,7 @@ public class MovieDao extends AbstractMFlixDao {
     return true;
   }
 
+
   /**
    * Gets a movie object from the database.
    *
@@ -55,7 +70,9 @@ public class MovieDao extends AbstractMFlixDao {
    * @return Document object or null.
    */
   @SuppressWarnings("UnnecessaryLocalVariable")
-  public Document getMovie(String movieId) {
+
+  public Document getMovie(String movieId){
+
     if (!validIdValue(movieId)) {
       return null;
     }
@@ -64,10 +81,16 @@ public class MovieDao extends AbstractMFlixDao {
     // match stage to find movie
     Bson match = Aggregates.match(Filters.eq("_id", new ObjectId(movieId)));
     pipeline.add(match);
-    // TODO> Ticket: Get Comments - implement the lookup stage that allows the comments to
-    // retrieved with Movies.
-    Document movie = moviesCollection.aggregate(pipeline).first();
 
+    // comments lookup stage
+    Bson lookup = buildLookupStage();
+    if(lookup != null) {
+      pipeline.add(lookup);
+    }
+
+    Document movie = moviesCollection.aggregate(pipeline)
+            .batchSize(1)
+            .iterator().tryNext();
     return movie;
   }
 
