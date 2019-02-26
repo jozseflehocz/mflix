@@ -3,6 +3,7 @@ package mflix.api.daos;
 import com.mongodb.MongoClientSettings;
 import com.mongodb.MongoWriteException;
 import com.mongodb.ReadConcern;
+import com.mongodb.client.FindIterable;
 import com.mongodb.client.MongoClient;
 import com.mongodb.client.MongoCollection;
 import com.mongodb.client.model.Aggregates;
@@ -13,6 +14,7 @@ import com.mongodb.client.result.DeleteResult;
 import com.mongodb.client.result.UpdateResult;
 import mflix.api.models.Comment;
 import mflix.api.models.Critic;
+import mflix.api.models.User;
 import org.bson.Document;
 import org.bson.codecs.configuration.CodecRegistry;
 import org.bson.codecs.pojo.PojoCodecProvider;
@@ -68,23 +70,25 @@ public class CommentDao extends AbstractMFlixDao {
   }
 
   /**
-   * Adds a new Comment to the collection. The equivalent instruction in the mongo shell would be:
-   *
-   * <p>db.comments.insertOne({comment})
-   *
+   * Adds a new Comment to the collection.
+   * The equivalent instruction in the mongo shell would be:
    * <p>
-   *
+   *     db.comments.insertOne({comment})
+   * <p/>
    * @param comment - Comment object.
-   * @throw IncorrectDaoOperation if the insert fails, otherwise
-   * returns the resulting Comment object.
+   * @return Null if the insert fails, otherwise returns the resulting Comment object.
    */
-  public Comment addComment(Comment comment) {
+  public Comment addComment(Comment comment){
 
-    // TODO> Ticket - Update User reviews: implement the functionality that enables adding a new
-    // comment.
+    if ( comment.getId()==null || comment.getId().isEmpty()) {
+      throw new IncorrectDaoOperation("Comment objects need to have an id field set.");
+    }
+    commentCollection.insertOne(comment);
+
+
     // TODO> Ticket - Handling Errors: Implement a try catch block to
     // handle a potential write exception when given a wrong commentId.
-    return null;
+    return comment;
   }
 
   /**
@@ -106,6 +110,23 @@ public class CommentDao extends AbstractMFlixDao {
     // user own comments
     // TODO> Ticket - Handling Errors: Implement a try catch block to
     // handle a potential write exception when given a wrong commentId.
+    Bson filter = Filters.and(
+            Filters.eq("email", email),
+            Filters.eq("_id", new ObjectId(commentId)));
+    Bson update = Updates.combine(Updates.set("text", text),
+            Updates.set("date", new Date())) ;
+    UpdateResult res = commentCollection.updateOne(filter, update);
+
+    if(res.getMatchedCount() > 0){
+
+      if (res.getModifiedCount() != 1){
+        log.warn("Comment `{}` text was not updated. Is it the same text?");
+      }
+
+      return true;
+    }
+    log.error("Could not update comment `{}`. Make sure the comment is owned by `{}`",
+            commentId, email);
     return false;
   }
 
