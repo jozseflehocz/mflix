@@ -15,6 +15,8 @@ import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.List;
 
+import static com.mongodb.client.model.Filters.eq;
+
 public class Migrator {
 
   /**
@@ -25,8 +27,19 @@ public class Migrator {
    * @return UpdateOneModel operation response object
    */
   private static UpdateOneModel<Document> transformRating(Document doc) {
+
     try {
-      String imdbRating = doc.get("imdb", Document.class).getString("rating");
+
+      String imdbRating=null;
+      Object imdbfield = doc.get("imdb");
+      if (!imdbfield.getClass().toString().equals("class java.lang.Integer")){
+        System.out.println(imdbfield.getClass());
+      imdbRating = doc.get("imdb", Document.class).getString("rating");
+    }else{
+        imdbRating="0";
+
+    }
+
 
       if (imdbRating == null) {
         return null;
@@ -38,8 +51,8 @@ public class Migrator {
       }
       // TODO> Ticket: Migration - define the UpdateOneModel object for
       // the rating type cleanup.
-      return new UpdateOneModel<Document>(new Document(), new
-      Document());
+System.out.println(doc.get("_id"));
+      return new UpdateOneModel<Document>(eq("_id", doc.getObjectId("_id")), Updates.set("imdb",new Document("rating",rating)));
     } catch (NumberFormatException e) {
       System.out.println(
           MessageFormat.format(
@@ -63,7 +76,7 @@ public class Migrator {
     try {
       if (lastUpdated != null) {
         return new UpdateOneModel<>(
-            Filters.eq("_id", doc.getObjectId("_id")),
+            eq("_id", doc.getObjectId("_id")),
             Updates.set("lastupdated", dateFormat.parse(lastUpdated)));
       }
 
@@ -88,16 +101,17 @@ public class Migrator {
 
     // set your MongoDB Cluster connection string
     // TODO> Ticket: Migration - set the cluster connection string.
-    String mongoUri = "";
+    String mongoUri = "mongodb+srv://m220student:m220password@mflix-8lxk0.mongodb.net/test?retryWrites=true";
 
     // instantiate database and collection objects
     MongoDatabase mflix = MongoClients.create(mongoUri).getDatabase("mflix");
     MongoCollection<Document> movies = mflix.getCollection("movies");
     Bson dateStringFilter = null;
-    String datePattern = "";
+    String datePattern = "yyyy-MM-dd HH:mm:ss";
     // TODO> Ticket: Migration - create a query filter that finds all
     // documents that are required to be updated and the correct date
     // format pattern
+    dateStringFilter=Filters.type("lastupdated", "string");
     Document queryFilter = new Document();
     SimpleDateFormat dateFormat = new SimpleDateFormat(datePattern);
 
@@ -111,13 +125,16 @@ public class Migrator {
       WriteModel<Document> updateDate = transformDates(doc, dateFormat);
       if (updateDate != null) {
         bulkWrites.add(updateDate);
+       // System.out.println(updateDate.toString());
       }
     }
 
     // TODO> Ticket: Migration - create a query filter that finds
     // documents where `imdb.rating` is of type string
     Bson ratingStringFilter = new Document();
+    ratingStringFilter = Filters.not(Filters.type("imdb.rating", "number"));
     for (Document doc : movies.find(ratingStringFilter)) {
+      System.out.println(doc);
       // Apply "imdb.rating" string to number conversion
       WriteModel<Document> updateRating = transformRating(doc);
       if (updateRating != null) {
@@ -127,7 +144,7 @@ public class Migrator {
 
     // execute the bulk update
     // TODO> Ticket: Migration - set the bulkWrite options
-    BulkWriteOptions bulkWriteOptions = null;
+    BulkWriteOptions bulkWriteOptions = new BulkWriteOptions().ordered(true);
     if (bulkWrites.isEmpty()) {
       System.out.println("Nothing to update!");
       System.exit(0);
