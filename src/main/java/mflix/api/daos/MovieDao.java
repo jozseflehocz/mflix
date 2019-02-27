@@ -59,8 +59,13 @@ public class MovieDao extends AbstractMFlixDao {
     //TODO> Ticket: Handling Errors - implement a way to catch a
     //any potential exceptions thrown while validating a movie id.
     //Check out this method's use in the method that follows.
-   Bson movieFilter=new Document("_id",movieId);
+
    try {
+
+     if (!ObjectId.isValid(movieId)) {
+       return false;
+     }
+     Bson movieFilter=new Document("_id",new ObjectId(movieId));
      Document movie = moviesCollection.find(movieFilter).iterator().tryNext();
      if (movie != null) {
        return true;
@@ -84,6 +89,10 @@ public class MovieDao extends AbstractMFlixDao {
   public Document getMovie(String movieId) {
 
     try {
+
+      if (!ObjectId.isValid(movieId)){
+        return null;
+      }
 
       List<Bson> pipeline = new ArrayList<>();
       // match stage to find movie
