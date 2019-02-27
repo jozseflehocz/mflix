@@ -59,7 +59,17 @@ public class MovieDao extends AbstractMFlixDao {
     //TODO> Ticket: Handling Errors - implement a way to catch a
     //any potential exceptions thrown while validating a movie id.
     //Check out this method's use in the method that follows.
-    return true;
+   Bson movieFilter=new Document("_id",movieId);
+   try {
+     Document movie = moviesCollection.find(movieFilter).iterator().tryNext();
+     if (movie != null) {
+       return true;
+     } else {
+       return false;
+     }
+   }catch(Exception e){
+     throw new IncorrectDaoOperation("movieId does not exists: "+movieId);
+   }
   }
 
 
@@ -71,27 +81,28 @@ public class MovieDao extends AbstractMFlixDao {
    */
   @SuppressWarnings("UnnecessaryLocalVariable")
 
-  public Document getMovie(String movieId){
+  public Document getMovie(String movieId) {
 
-    if (!validIdValue(movieId)) {
-      return null;
+    try {
+
+      List<Bson> pipeline = new ArrayList<>();
+      // match stage to find movie
+      Bson match = Aggregates.match(Filters.eq("_id", new ObjectId(movieId)));
+      pipeline.add(match);
+
+      // comments lookup stage
+      Bson lookup = buildLookupStage();
+      if (lookup != null) {
+        pipeline.add(lookup);
+      }
+
+      Document movie = moviesCollection.aggregate(pipeline)
+              .batchSize(1)
+              .iterator().tryNext();
+      return movie;
+    } catch (Exception e) {
+      throw new IncorrectDaoOperation("There is something wrong with the movieId: " + movieId);
     }
-
-    List<Bson> pipeline = new ArrayList<>();
-    // match stage to find movie
-    Bson match = Aggregates.match(Filters.eq("_id", new ObjectId(movieId)));
-    pipeline.add(match);
-
-    // comments lookup stage
-    Bson lookup = buildLookupStage();
-    if(lookup != null) {
-      pipeline.add(lookup);
-    }
-
-    Document movie = moviesCollection.aggregate(pipeline)
-            .batchSize(1)
-            .iterator().tryNext();
-    return movie;
   }
 
   /**

@@ -88,12 +88,14 @@ public class CommentDao extends AbstractMFlixDao {
     if ( comment.getId()==null || comment.getId().isEmpty()) {
       throw new IncorrectDaoOperation("Comment objects need to have an id field set.");
     }
-    commentCollection.insertOne(comment);
-
-
-    // TODO> Ticket - Handling Errors: Implement a try catch block to
-    // handle a potential write exception when given a wrong commentId.
-    return comment;
+    try {
+      commentCollection.insertOne(comment);
+      return comment;
+      // TODO> Ticket - Handling Errors: Implement a try catch block to
+      // handle a potential write exception when given a wrong commentId.
+    }catch (Exception e) {
+      throw new IncorrectDaoOperation("Something wrong with comment: " + comment.getId());
+    }
   }
 
   /**
@@ -120,19 +122,22 @@ public class CommentDao extends AbstractMFlixDao {
             Filters.eq("_id", new ObjectId(commentId)));
     Bson update = Updates.combine(Updates.set("text", text),
             Updates.set("date", new Date())) ;
-    UpdateResult res = commentCollection.updateOne(filter, update);
 
-    if(res.getMatchedCount() > 0){
+    try {
+      UpdateResult res = commentCollection.updateOne(filter, update);
+      if (res.getMatchedCount() > 0) {
 
-      if (res.getModifiedCount() != 1){
-        log.warn("Comment `{}` text was not updated. Is it the same text?");
+        if (res.getModifiedCount() != 1) {
+          log.warn("Comment `{}` text was not updated. Is it the same text?");
+        }
+        return true;
       }
-
-      return true;
+      log.error("Could not update comment `{}`. Make sure the comment is owned by `{}`",
+              commentId, email);
+      return false;
+    }catch(Exception e){
+      throw new IncorrectDaoOperation("Something is wrong with commentId: "+commentId);
     }
-    log.error("Could not update comment `{}`. Make sure the comment is owned by `{}`",
-            commentId, email);
-    return false;
   }
 
   /**
@@ -151,20 +156,22 @@ public class CommentDao extends AbstractMFlixDao {
             Filters.eq("email", email),
             Filters.eq("_id", new ObjectId(commentId)));
 
-    DeleteResult dResult = commentCollection.deleteOne(filter);
+    try {
 
-    if (dResult.getDeletedCount()==1) {
-      return true;
+      DeleteResult dResult = commentCollection.deleteOne(filter);
+
+      if (dResult.getDeletedCount() == 1) {
+        return true;
+      }
+
+      log.error("Could not update comment `{}`. Make sure the comment  is owned by `{}`",
+              commentId, email);
+      return false;
+      // TODO> Ticket Handling Errors - Implement a try catch block to
+      // handle a potential write exception when given a wrong commentId.
+    }catch (Exception e){
+      throw new IncorrectDaoOperation("Something is wrong with commentId: "+commentId);
     }
-
-    log.error("Could not update comment `{}`. Make sure the comment is owned by `{}`",
-            commentId, email);
-    return false;
-
-
-
-    // TODO> Ticket Handling Errors - Implement a try catch block to
-    // handle a potential write exception when given a wrong commentId.
   }
 
   private Bson buildLookupStage(){
