@@ -1,10 +1,9 @@
 package mflix.api.daos;
 
 import com.mongodb.MongoClientSettings;
-import com.mongodb.MongoWriteException;
+
 import com.mongodb.ReadConcern;
-import com.mongodb.client.AggregateIterable;
-import com.mongodb.client.FindIterable;
+
 import com.mongodb.client.MongoClient;
 import com.mongodb.client.MongoCollection;
 import com.mongodb.client.model.*;
@@ -23,18 +22,12 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
-import org.springframework.util.Assert;
-
-import java.text.MessageFormat;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Date;
 import java.util.List;
 
-import static com.mongodb.client.model.Accumulators.sum;
-import static com.mongodb.client.model.Aggregates.group;
+
 import static com.mongodb.client.model.Aggregates.sort;
-import static com.mongodb.client.model.Projections.fields;
 import static com.mongodb.client.model.Sorts.descending;
 import static org.bson.codecs.configuration.CodecRegistries.fromProviders;
 import static org.bson.codecs.configuration.CodecRegistries.fromRegistries;
@@ -42,7 +35,9 @@ import static org.bson.codecs.configuration.CodecRegistries.fromRegistries;
 @Component
 public class CommentDao extends AbstractMFlixDao {
 
-  public static String COMMENT_COLLECTION = "comments";
+  public static final String COMMENTS="comments";
+
+  public static final String COMMENT_COLLECTION = COMMENTS;
 
   private MongoCollection<Comment> commentCollection;
 
@@ -91,7 +86,7 @@ public class CommentDao extends AbstractMFlixDao {
     try {
       commentCollection.insertOne(comment);
       return comment;
-      // TODO> Ticket - Handling Errors: Implement a try catch block to
+      //  Ticket - Handling Errors: Implement a try catch block to
       // handle a potential write exception when given a wrong commentId.
     }catch (Exception e) {
       throw new IncorrectDaoOperation("Something wrong with comment: " + comment.getId());
@@ -113,9 +108,9 @@ public class CommentDao extends AbstractMFlixDao {
    */
   public boolean updateComment(String commentId, String text, String email) {
 
-    // TODO> Ticket - Update User reviews: implement the functionality that enables updating an
+    //  Ticket - Update User reviews: implement the functionality that enables updating an
     // user own comments
-    // TODO> Ticket - Handling Errors: Implement a try catch block to
+    //  Ticket - Handling Errors: Implement a try catch block to
     // handle a potential write exception when given a wrong commentId.
     Bson filter = Filters.and(
             Filters.eq("email", email),
@@ -148,7 +143,7 @@ public class CommentDao extends AbstractMFlixDao {
    * @return true if successful deletes the comment.
    */
   public boolean deleteComment(String commentId, String email) {
-    // TODO> Ticket Delete Comments - Implement the method that enables the deletion of a user
+    //  Ticket Delete Comments - Implement the method that enables the deletion of a user
     // comment
     // TIP: make sure to match only users that own the given commentId
 
@@ -167,7 +162,7 @@ public class CommentDao extends AbstractMFlixDao {
       log.error("Could not update comment `{}`. Make sure the comment  is owned by `{}`",
               commentId, email);
       return false;
-      // TODO> Ticket Handling Errors - Implement a try catch block to
+      //  Ticket Handling Errors - Implement a try catch block to
       // handle a potential write exception when given a wrong commentId.
     }catch (Exception e){
       throw new IncorrectDaoOperation("Something is wrong with commentId: "+commentId);
@@ -188,7 +183,7 @@ public class CommentDao extends AbstractMFlixDao {
 
     lookUpPipeline.add(lookupMatch);
     lookUpPipeline.add(sortLookup);
-    return Aggregates.lookup("comments", let, lookUpPipeline, "comments");
+    return Aggregates.lookup(COMMENTS, let, lookUpPipeline, COMMENTS);
   }
 
   /**
@@ -200,7 +195,7 @@ public class CommentDao extends AbstractMFlixDao {
    */
   public List<Critic> mostActiveCommenters() {
     List<Critic> mostActive = new ArrayList<>();
-    // // TODO> Ticket: User Report - execute a command that returns the
+    // //  Ticket: User Report - execute a command that returns the
     // // list of 20 users, group by number of comments. Don't forget,
     // // this report is expected to be produced with an high durability
     // // guarantee for the returned documents. Once a commenter is in the
@@ -235,7 +230,7 @@ public class CommentDao extends AbstractMFlixDao {
       // setting our ReadConcern to "majority"
       // https://docs.mongodb.com/manual/reference/method/cursor.readConcern/
       MongoCollection<Critic> commentCriticCollection =
-              this.db.getCollection("comments", Critic.class)
+              this.db.getCollection(COMMENTS, Critic.class)
                       .withCodecRegistry(this.pojoCodecRegistry)
                       .withReadConcern(ReadConcern.MAJORITY);
 

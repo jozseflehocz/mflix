@@ -17,7 +17,7 @@ import java.util.List;
 @Component
 public class MovieDao extends AbstractMFlixDao {
 
-  public static String MOVIES_COLLECTION = "movies";
+  public static final String MOVIES_COLLECTION = "movies";
 
   private MongoCollection<Document> moviesCollection;
 
@@ -56,7 +56,7 @@ public class MovieDao extends AbstractMFlixDao {
    * @return true if valid movieId.
    */
   private boolean validIdValue(String movieId) {
-    //TODO> Ticket: Handling Errors - implement a way to catch a
+    //Ticket: Handling Errors - implement a way to catch a
     //any potential exceptions thrown while validating a movie id.
     //Check out this method's use in the method that follows.
 
@@ -66,12 +66,8 @@ public class MovieDao extends AbstractMFlixDao {
        return false;
      }
      Bson movieFilter=new Document("_id",new ObjectId(movieId));
-     Document movie = moviesCollection.find(movieFilter).iterator().tryNext();
-     if (movie != null) {
-       return true;
-     } else {
-       return false;
-     }
+     moviesCollection.find(movieFilter).iterator().tryNext();
+     return true;
    }catch(Exception e){
      throw new IncorrectDaoOperation("movieId does not exists: "+movieId);
    }
@@ -90,7 +86,7 @@ public class MovieDao extends AbstractMFlixDao {
 
     try {
 
-      if (!ObjectId.isValid(movieId)){
+      if (!validIdValue(movieId)){
         return null;
       }
 
@@ -105,10 +101,9 @@ public class MovieDao extends AbstractMFlixDao {
         pipeline.add(lookup);
       }
 
-      Document movie = moviesCollection.aggregate(pipeline)
+      return moviesCollection.aggregate(pipeline)
               .batchSize(1)
               .iterator().tryNext();
-      return movie;
     } catch (Exception e) {
       throw new IncorrectDaoOperation("There is something wrong with the movieId: " + movieId);
     }
@@ -125,9 +120,8 @@ public class MovieDao extends AbstractMFlixDao {
   @SuppressWarnings("UnnecessaryLocalVariable")
   public List<Document> getMovies(int limit, int skip) {
     String defaultSortKey = "tomatoes.viewer.numReviews";
-    List<Document> movies =
-        new ArrayList<>(getMovies(limit, skip, Sorts.descending(defaultSortKey)));
-    return movies;
+    return  new ArrayList<>(getMovies(limit, skip, Sorts.descending(defaultSortKey)));
+
   }
 
   /**
@@ -237,7 +231,7 @@ public class MovieDao extends AbstractMFlixDao {
     // sort key
     Bson sort = Sorts.descending(sortKey);
     List<Document> movies = new ArrayList<>();
-    // TODO > Ticket: Paging - implement the necessary cursor methods to support simple
+    // Ticket: Paging - implement the necessary cursor methods to support simple
     // pagination like skip and limit in the code below
     moviesCollection.find(castFilter).sort(sort).limit(limit).skip(skip).iterator()
     .forEachRemaining(movies::add);
@@ -280,17 +274,7 @@ public class MovieDao extends AbstractMFlixDao {
 
   /*
   This method is the java implementation of the following mongo shell aggregation pipeline
-  {
-   "$bucket": {
-     "groupBy": "$metacritic",
-     "boundaries": [0, 50, 70, 90, 100],
-     "default": "other",
-     "output": {
-     "count": {"$sum": 1}
-     }
-    }
-   }
-   */
+  */
   private Bson buildRatingBucketStage() {
     BucketOptions bucketOptions = new BucketOptions();
     bucketOptions.defaultBucket("other");
@@ -316,7 +300,7 @@ public class MovieDao extends AbstractMFlixDao {
     // Using a LinkedList to ensure insertion order
     List<Bson> pipeline = new LinkedList<>();
 
-    // TODO > Ticket: Faceted Search - build the aggregation pipeline by adding all stages in the
+    // Ticket: Faceted Search - build the aggregation pipeline by adding all stages in the
     // correct order
     // Your job is to order the stages correctly in the pipeline.
     // Starting with the `matchStage` add the remaining stages.
@@ -342,7 +326,7 @@ public class MovieDao extends AbstractMFlixDao {
     return Aggregates.facet(
         new Facet("runtime", buildRuntimeBucketStage()),
         new Facet("rating", buildRatingBucketStage()),
-        new Facet("movies", Aggregates.addFields(new Field("title", "$title"))));
+        new Facet(MOVIES_COLLECTION, Aggregates.addFields(new Field("title", "$title"))));
   }
 
   /**
